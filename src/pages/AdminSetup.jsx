@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { base44 } from "@/api/base44Client";
+import { useAuth } from '@/lib/AuthContext';
 import { Shield, Mail, User, Lock, CheckCircle, AlertCircle } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,24 +13,37 @@ import { createPageUrl } from "@/utils";
 
 export default function AdminSetup() {
   const [loading, setLoading] = useState(true);
-  const [hasAdmin, setHasAdmin] = useState(false);
+  const [isUserAdmin, setIsUserAdmin] = useState(false);
+  const [hasAnyAdmin, setHasAnyAdmin] = useState(false);
   const [inviting, setInviting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     email: ''
   });
 
   useEffect(() => {
-    checkAdminExists();
-  }, []);
+    checkAdminStatus();
+  }, [user]);
 
-  const checkAdminExists = async () => {
+  const checkAdminStatus = async () => {
     try {
+      // 1. Verificar se o usuário atual é admin
+      if (user) {
+        try {
+          const currentUser = await base44.entities.User.read(user.id);
+          setIsUserAdmin(currentUser.role === 'admin');
+        } catch (error) {
+          console.log('User profile not found, checking if any admin exists');
+        }
+      }
+
+      // 2. Verificar se existe qualquer admin no sistema
       const users = await base44.entities.User.filter({ role: 'admin' });
-      setHasAdmin(users.length > 0);
+      setHasAnyAdmin(users.length > 0);
     } catch (error) {
-      console.error('Error checking admin:', error);
+      console.error('Error checking admin status:', error);
     } finally {
       setLoading(false);
     }
@@ -52,7 +66,7 @@ export default function AdminSetup() {
     try {
       await base44.users.inviteUser(formData.email, 'admin');
       setSuccess(true);
-      toast.success('Modo Local: Convite simulado com sucesso!');
+      toast.success('Convite enviado com sucesso!');
     } catch (error) {
       toast.error('Erro ao enviar convite: ' + (error.message || 'Tente novamente'));
     } finally {
@@ -68,8 +82,8 @@ export default function AdminSetup() {
     );
   }
 
-  // Se já tem admin ou se estamos no modo local e o usuário quer pular essa tela
-  if ((hasAdmin || import.meta.env.VITE_ENABLE_TEST_AUTH === 'true') && !success) {
+  // Se o usuário atual é admin OU se existe admin no sistema e está em modo teste, pular setup
+  if ((isUserAdmin || (hasAnyAdmin && import.meta.env.VITE_ENABLE_TEST_AUTH === 'true')) && !success) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#1e3a5f] to-[#2d4a6f] flex items-center justify-center p-6">
         <Card className="max-w-md w-full">
@@ -81,7 +95,7 @@ export default function AdminSetup() {
               Sistema Pronto
             </h2>
             <p className="text-slate-600 mb-6">
-              O administrador principal (robsoncordeiro1966@gmail.com) já está configurado no modo de teste.
+              Você está autenticado como administrador e pode acessar todas as funcionalidades.
             </p>
             <Button
               onClick={() => window.location.href = '/'}
