@@ -673,7 +673,7 @@ export default function StudentDashboard() {
                             <Bot className="w-6 h-6 text-white" />
                           </div>
                           <div className="flex-1">
-                            <h4 className="font-bold text-slate-800 mb-1">Bdz Tutor</h4>
+                            <h4 className="font-bold text-slate-800 mb-1">RCS Tutor</h4>
                             <p className="text-sm text-slate-600">Assistente inteligente para ajudar você a aprender</p>
                           </div>
                         </div>

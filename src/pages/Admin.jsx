@@ -114,7 +114,7 @@ export default function Admin() {
       title: 'Configurações do Site', 
       icon: Settings, 
       page: 'AdminSettings',
-      description: 'Gerencie nome, cores e Bdz Tutor',
+      description: 'Gerencie nome, cores e RCS Tutor',
       color: 'from-blue-500 to-blue-600'
     },
     { 

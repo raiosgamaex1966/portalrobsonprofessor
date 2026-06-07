@@ -102,6 +102,9 @@ import Appointments from './pages/Appointments';
 import StudentQuizGenerator from './pages/StudentQuizGenerator';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import StudentAiAgents from './pages/StudentAiAgents';
+import StudentAiStudyRoom from './pages/StudentAiStudyRoom';
+import AdminAiAgents from './pages/AdminAiAgents';
 import __Layout from './Layout.jsx';
 
 
@@ -161,6 +164,9 @@ export const PAGES = {
     "StudentQuizGenerator": StudentQuizGenerator,
     "ForgotPassword": ForgotPassword,
     "ResetPassword": ResetPassword,
+    "StudentAiAgents": StudentAiAgents,
+    "StudentAiStudyRoom": StudentAiStudyRoom,
+    "AdminAiAgents": AdminAiAgents,
 }
 
 export const pagesConfig = {

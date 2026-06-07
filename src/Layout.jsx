@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 import { useAuth } from '@/lib/AuthContext';
 import { supabase } from '@/api/supabaseClient';
@@ -23,6 +23,7 @@ import { toast } from "sonner";
 
 export default function Layout({ children, currentPageName }) {
   const { user: authUser, navigateToLogin, logout: authLogout } = useAuth();
+  const navigate = useNavigate();
   const [user, setUser] = useState(authUser);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
@@ -185,10 +186,15 @@ export default function Layout({ children, currentPageName }) {
 
   const loggedInPages = user ? [
     ...(user.role === 'admin' 
-      ? [{ name: 'Admin', icon: Shield, label: 'Admin' }]
-      : (user.role === 'alunos' || user.role === 'aluno' || user.role === 'user')
+      ? [
+          { name: 'Admin', icon: Shield, label: 'Admin' },
+          { name: 'AdminAiAgents', icon: Settings, label: 'Tutores IA' },
+          { name: 'StudentAiAgents', icon: Sparkles, label: 'Estudo IA' }
+        ]
+      : (user.role === 'alunos' || user.role === 'aluno' || user.role === 'user' || user.role === 'student')
       ? [
           { name: 'StudentDashboard', icon: GraduationCap, label: 'Meu Dashboard' },
+          { name: 'StudentAiAgents', icon: Sparkles, label: 'Estudo com IA' },
           { name: 'StudentExternalCourses', icon: GraduationCap, label: 'Cursos Externos' },
           { name: 'StudentMessages', icon: MessageSquare, label: 'Mensagens' }
         ]
@@ -494,6 +500,7 @@ export default function Layout({ children, currentPageName }) {
                 id="password" 
                 type="password"
                 placeholder="Nova senha (mínimo 6 caracteres)"
+                autoComplete="new-password"
                 value={profileFormData.password || ''} 
                 onChange={(e) => setProfileFormData({ ...profileFormData, password: e.target.value })}
               />
