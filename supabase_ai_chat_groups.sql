@@ -31,16 +31,27 @@ DROP POLICY IF EXISTS "Admins can insert all chat messages" ON chat_messages;
 DROP POLICY IF EXISTS "Members can view room memberships" ON chat_room_members;
 DROP POLICY IF EXISTS "Admins can manage memberships" ON chat_room_members;
 
--- 5. Criar Políticas RLS para chat_rooms
+-- 5. Criar função de verificação de associação com SECURITY DEFINER (ignora RLS internamente para evitar recursão)
+CREATE OR REPLACE FUNCTION public.check_room_membership(r_id UUID, u_id UUID)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.chat_room_members WHERE room_id = r_id AND user_id = u_id
+  );
+END;
+$$;
+
+-- 6. Criar Políticas RLS para chat_rooms
 -- Alunos podem visualizar salas de chat se:
 --   - Criaram a sala (user_id = auth.uid()) OU
 --   - São membros dela (presente em chat_room_members)
 CREATE POLICY "Users can view their chat rooms" ON chat_rooms FOR SELECT TO authenticated
   USING (
     user_id = auth.uid() 
-    OR EXISTS (
-      SELECT 1 FROM chat_room_members WHERE room_id = chat_rooms.id AND user_id = auth.uid()
-    )
+    OR check_room_membership(id, auth.uid())
   );
 
 -- Alunos podem criar suas próprias salas de chat (individuais)
@@ -53,14 +64,12 @@ CREATE POLICY "Admins can do everything on chat rooms" ON chat_rooms TO authenti
   WITH CHECK ((SELECT role FROM profiles WHERE id = auth.uid()) = 'admin');
 
 
--- 6. Criar Políticas RLS para chat_room_members
+-- 7. Criar Políticas RLS para chat_room_members
 -- Membros podem visualizar quem participa do mesmo chat
 CREATE POLICY "Members can view room memberships" ON chat_room_members FOR SELECT TO authenticated
   USING (
     user_id = auth.uid()
-    OR EXISTS (
-      SELECT 1 FROM chat_room_members WHERE room_id = chat_room_members.room_id AND user_id = auth.uid()
-    )
+    OR check_room_membership(room_id, auth.uid())
   );
 
 -- Admins/Professores podem gerenciar membros de qualquer grupo
@@ -69,16 +78,14 @@ CREATE POLICY "Admins can manage memberships" ON chat_room_members TO authentica
   WITH CHECK ((SELECT role FROM profiles WHERE id = auth.uid()) = 'admin');
 
 
--- 7. Criar Políticas RLS para chat_messages
+-- 8. Criar Políticas RLS para chat_messages
 -- Alunos podem ver mensagens se pertencerem à sala
 CREATE POLICY "Users can view messages in their rooms" ON chat_messages FOR SELECT TO authenticated
   USING (
     EXISTS (
       SELECT 1 FROM chat_rooms WHERE id = chat_messages.room_id AND user_id = auth.uid()
     )
-    OR EXISTS (
-      SELECT 1 FROM chat_room_members WHERE room_id = chat_messages.room_id AND user_id = auth.uid()
-    )
+    OR check_room_membership(room_id, auth.uid())
   );
 
 -- Alunos podem enviar mensagens se pertencerem à sala
@@ -89,9 +96,7 @@ CREATE POLICY "Users can insert messages in their rooms" ON chat_messages FOR IN
       EXISTS (
         SELECT 1 FROM chat_rooms WHERE id = chat_messages.room_id AND user_id = auth.uid()
       )
-      OR EXISTS (
-        SELECT 1 FROM chat_room_members WHERE room_id = chat_messages.room_id AND user_id = auth.uid()
-      )
+      OR check_room_membership(room_id, auth.uid())
     )
   );
 
