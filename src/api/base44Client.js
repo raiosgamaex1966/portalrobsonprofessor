@@ -456,6 +456,7 @@ export const base44 = {
             };
           }
         };
+      }
       if (entityName === 'ClassStudent') {
         return {
           list: async (order = '-created_at') => {
