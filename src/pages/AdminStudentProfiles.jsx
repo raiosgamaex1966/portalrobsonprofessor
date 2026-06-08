@@ -120,7 +120,13 @@ export default function AdminStudentProfiles() {
                     )}
                     {profile.birth_date && (
                       <p className="text-sm text-slate-600 mb-4">
-                        Nascimento: {new Date(profile.birth_date).toLocaleDateString('pt-BR')}
+                        Nascimento: {(() => {
+                          const parts = profile.birth_date.split('-');
+                          if (parts.length === 3) {
+                            return `${parts[2]}/${parts[1]}/${parts[0]}`;
+                          }
+                          return new Date(profile.birth_date).toLocaleDateString('pt-BR');
+                        })()}
                       </p>
                     )}
 

@@ -236,7 +236,13 @@ export default function AdminPendingStudents() {
                         )}
                         {student.birth_date && (
                           <p className="text-sm text-slate-600">
-                            Nascimento: {new Date(student.birth_date).toLocaleDateString('pt-BR')}
+                            Nascimento: {(() => {
+                              const parts = student.birth_date.split('-');
+                              if (parts.length === 3) {
+                                return `${parts[2]}/${parts[1]}/${parts[0]}`;
+                              }
+                              return new Date(student.birth_date).toLocaleDateString('pt-BR');
+                            })()}
                           </p>
                         )}
 
@@ -339,7 +345,13 @@ export default function AdminPendingStudents() {
                         )}
                         {student.birth_date && (
                           <p className="text-sm text-slate-600">
-                            Nascimento: {new Date(student.birth_date).toLocaleDateString('pt-BR')}
+                            Nascimento: {(() => {
+                              const parts = student.birth_date.split('-');
+                              if (parts.length === 3) {
+                                return `${parts[2]}/${parts[1]}/${parts[0]}`;
+                              }
+                              return new Date(student.birth_date).toLocaleDateString('pt-BR');
+                            })()}
                           </p>
                         )}
 

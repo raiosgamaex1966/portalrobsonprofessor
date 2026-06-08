@@ -506,7 +506,13 @@ export default function StudentDashboard() {
                       <div>
                         <p className="text-slate-500">Nascimento</p>
                         <p className="font-medium text-slate-800">
-                          {format(new Date(studentProfile.birth_date), "dd/MM/yyyy")}
+                          {(() => {
+                            const parts = studentProfile.birth_date.split('-');
+                            if (parts.length === 3) {
+                              return `${parts[2]}/${parts[1]}/${parts[0]}`;
+                            }
+                            return studentProfile.birth_date;
+                          })()}
                         </p>
                       </div>
                     )}
