@@ -95,39 +95,57 @@ export const base44 = {
       if (entityName === 'User') {
         return {
           list: async () => {
+            const { data: profiles } = await supabase.from('profiles').select('id, full_name, role');
+            const profileMap = {};
+            (profiles || []).forEach(p => {
+              profileMap[p.id] = p;
+            });
+
             if (supabaseAdmin) {
               const { data, error } = await supabaseAdmin.auth.admin.listUsers();
               if (error) throw error;
-              return data.users.map(u => ({
-                id: u.id,
-                email: u.email,
-                full_name: u.user_metadata?.full_name || u.email.split('@')[0],
-                role: u.user_metadata?.role || 'user',
-                created_date: u.created_at
-              }));
+              return data.users.map(u => {
+                const p = profileMap[u.id];
+                return {
+                  id: u.id,
+                  email: u.email,
+                  full_name: p?.full_name || u.user_metadata?.full_name || u.email.split('@')[0],
+                  role: p?.role || u.user_metadata?.role || 'user',
+                  created_date: u.created_at
+                };
+              });
             }
             // Fallback to profiles table if no admin permissions
             const { data, error } = await supabase.from('profiles').select('*');
             if (error) throw error;
             return data.map(p => ({
               id: p.id,
-              email: p.email || '(sem email)',
+              email: '(sem email)',
               full_name: p.full_name || '',
               role: p.role || 'user',
               created_date: p.created_at
             }));
           },
           filter: async (filters) => {
+            const { data: profiles } = await supabase.from('profiles').select('id, full_name, role');
+            const profileMap = {};
+            (profiles || []).forEach(p => {
+              profileMap[p.id] = p;
+            });
+
             if (supabaseAdmin) {
               const { data, error } = await supabaseAdmin.auth.admin.listUsers();
               if (error) throw error;
-              let result = data.users.map(u => ({
-                id: u.id,
-                email: u.email,
-                full_name: u.user_metadata?.full_name || u.email.split('@')[0],
-                role: u.user_metadata?.role || 'user',
-                created_date: u.created_at
-              }));
+              let result = data.users.map(u => {
+                const p = profileMap[u.id];
+                return {
+                  id: u.id,
+                  email: u.email,
+                  full_name: p?.full_name || u.user_metadata?.full_name || u.email.split('@')[0],
+                  role: p?.role || u.user_metadata?.role || 'user',
+                  created_date: u.created_at
+                };
+              });
               Object.entries(filters).forEach(([key, value]) => {
                 result = result.filter(u => u[key] === value);
               });
