@@ -112,8 +112,32 @@ CREATE POLICY "Users can insert messages in their rooms" ON chat_messages FOR IN
       OR check_room_membership(room_id, auth.uid())
     )
   );
-
 -- Admins/Professores podem ler e enviar mensagens em qualquer sala
 CREATE POLICY "Admins can do everything on chat messages" ON chat_messages TO authenticated
   USING ((SELECT role FROM profiles WHERE id = auth.uid()) = 'admin')
   WITH CHECK ((SELECT role FROM profiles WHERE id = auth.uid()) = 'admin');
+
+-- 9. Habilitar o Supabase Realtime para as tabelas de chat
+do $$
+begin
+  if not exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    create publication supabase_realtime;
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables 
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'chat_messages'
+  ) then
+    alter publication supabase_realtime add table chat_messages;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables 
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'chat_rooms'
+  ) then
+    alter publication supabase_realtime add table chat_rooms;
+  end if;
+end $$;
