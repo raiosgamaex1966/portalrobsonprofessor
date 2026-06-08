@@ -18,7 +18,9 @@ ALTER TABLE chat_room_members ENABLE ROW LEVEL SECURITY;
 
 -- 4. Remover políticas antigas de chat para recriá-las com suporte a grupos
 DROP POLICY IF EXISTS "Users can view their own chat rooms" ON chat_rooms;
+DROP POLICY IF EXISTS "Users can view their chat rooms" ON chat_rooms;
 DROP POLICY IF EXISTS "Users can insert their own chat rooms" ON chat_rooms;
+DROP POLICY IF EXISTS "Users can update their chat rooms" ON chat_rooms;
 DROP POLICY IF EXISTS "Admins can view all chat rooms" ON chat_rooms;
 DROP POLICY IF EXISTS "Admins can insert all chat rooms" ON chat_rooms;
 DROP POLICY IF EXISTS "Admins can update all chat rooms" ON chat_rooms;
@@ -57,6 +59,17 @@ CREATE POLICY "Users can view their chat rooms" ON chat_rooms FOR SELECT TO auth
 -- Alunos podem criar suas próprias salas de chat (individuais)
 CREATE POLICY "Users can insert their own chat rooms" ON chat_rooms FOR INSERT TO authenticated
   WITH CHECK (user_id = auth.uid() AND is_group = false);
+
+-- Alunos podem atualizar suas próprias salas de chat (para atualizar last_message_at)
+CREATE POLICY "Users can update their chat rooms" ON chat_rooms FOR UPDATE TO authenticated
+  USING (
+    user_id = auth.uid() 
+    OR check_room_membership(id, auth.uid())
+  )
+  WITH CHECK (
+    user_id = auth.uid() 
+    OR check_room_membership(id, auth.uid())
+  );
 
 -- Admins/Professores têm controle total sobre as salas de chat
 CREATE POLICY "Admins can do everything on chat rooms" ON chat_rooms TO authenticated
