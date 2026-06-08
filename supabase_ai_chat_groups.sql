@@ -141,3 +141,10 @@ begin
     alter publication supabase_realtime add table chat_rooms;
   end if;
 end $$;
+
+-- 10. Atualizar políticas da tabela profiles para permitir que usuários autenticados vejam perfis de outros
+-- (Necessário para que professores vejam nomes dos alunos e alunos vejam nomes de professores/colegas)
+DROP POLICY IF EXISTS "Users can view their own profile" ON profiles;
+DROP POLICY IF EXISTS "Users can view all profiles" ON profiles;
+CREATE POLICY "Users can view all profiles" ON profiles FOR SELECT TO authenticated
+  USING (true);
