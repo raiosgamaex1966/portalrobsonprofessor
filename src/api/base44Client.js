@@ -161,7 +161,7 @@ export const base44 = {
             if (userIds.length > 0) {
               const { data: profiles } = await supabase
                 .from('profiles')
-                .select('id, full_name, email')
+                .select('id, full_name')
                 .in('id', userIds);
               (profiles || []).forEach(p => {
                 profileMap[p.id] = p;
@@ -214,7 +214,7 @@ export const base44 = {
             if (userIds.length > 0) {
               const { data: profiles } = await supabase
                 .from('profiles')
-                .select('id, full_name, email')
+                .select('id, full_name')
                 .in('id', userIds);
               (profiles || []).forEach(p => {
                 profileMap[p.id] = p;
@@ -245,10 +245,10 @@ export const base44 = {
             let email = '';
             
             if (!data.is_group) {
-              const { data: profile } = await supabase.from('profiles').select('full_name, email').eq('id', data.user_id).single();
+              const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', data.user_id).single();
               const [titleName, titleEmail] = (data.title || '').split('|');
               name = profile?.full_name || titleName || 'Aluno';
-              email = profile?.email || titleEmail || '';
+              email = titleEmail || '';
             } else {
               name = data.title;
               email = 'Grupo';
@@ -279,9 +279,9 @@ export const base44 = {
             } else {
               if ((!studentName || !studentEmail) && user) {
                 const targetUserId = payload.student_id || user.id;
-                const { data: profile } = await supabase.from('profiles').select('full_name, email').eq('id', targetUserId).single();
+                const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', targetUserId).single();
                 if (!studentName) studentName = profile?.full_name || user.user_metadata?.full_name || user.email.split('@')[0];
-                if (!studentEmail) studentEmail = profile?.email || user.email || '';
+                if (!studentEmail) studentEmail = user.email || '';
               }
               
               if (!studentName) studentName = 'Aluno';
@@ -322,10 +322,10 @@ export const base44 = {
             let email = '';
             
             if (!data.is_group) {
-              const { data: profile } = await supabase.from('profiles').select('full_name, email').eq('id', data.user_id).single();
+              const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', data.user_id).single();
               const [titleName, titleEmail] = (data.title || '').split('|');
               name = profile?.full_name || titleName || 'Aluno';
-              email = profile?.email || titleEmail || '';
+              email = titleEmail || '';
             } else {
               name = data.title;
               email = 'Grupo';
