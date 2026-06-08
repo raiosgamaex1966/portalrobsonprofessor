@@ -456,6 +456,105 @@ export const base44 = {
             };
           }
         };
+      if (entityName === 'ClassStudent') {
+        return {
+          list: async (order = '-created_at') => {
+            order = mapOrder(order);
+            const { data, error } = await supabase
+              .from('class_students')
+              .select('*')
+              .order(order.startsWith('-') ? order.substring(1) : order, { ascending: !order.startsWith('-') });
+            if (error) throw error;
+
+            const userIds = [...new Set((data || []).map(item => item.user_id))];
+            const profileMap = {};
+            if (userIds.length > 0) {
+              const { data: profiles } = await supabase
+                .from('profiles')
+                .select('id, full_name, role')
+                .in('id', userIds);
+              (profiles || []).forEach(p => {
+                profileMap[p.id] = p;
+              });
+            }
+
+            return (data || []).map(item => {
+              const profile = profileMap[item.user_id];
+              return {
+                ...item,
+                student_name: profile?.full_name || item.student_name || item.student_email?.split('@')[0] || 'Aluno',
+                created_date: item.created_at
+              };
+            });
+          },
+          filter: async (filters, order = '-created_at') => {
+            order = mapOrder(order);
+            let query = supabase.from('class_students').select('*');
+            Object.entries(filters).forEach(([key, value]) => {
+              query = query.eq(key, value);
+            });
+            const { data, error } = await query.order(order.startsWith('-') ? order.substring(1) : order, { ascending: !order.startsWith('-') });
+            if (error) throw error;
+
+            const userIds = [...new Set((data || []).map(item => item.user_id))];
+            const profileMap = {};
+            if (userIds.length > 0) {
+              const { data: profiles } = await supabase
+                .from('profiles')
+                .select('id, full_name, role')
+                .in('id', userIds);
+              (profiles || []).forEach(p => {
+                profileMap[p.id] = p;
+              });
+            }
+
+            return (data || []).map(item => {
+              const profile = profileMap[item.user_id];
+              return {
+                ...item,
+                student_name: profile?.full_name || item.student_name || item.student_email?.split('@')[0] || 'Aluno',
+                created_date: item.created_at
+              };
+            });
+          },
+          get: async (id) => {
+            const { data, error } = await supabase.from('class_students').select('*').eq('id', id).single();
+            if (error) throw error;
+            const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', data.user_id).single();
+            return {
+              ...data,
+              student_name: profile?.full_name || data.student_name || data.student_email?.split('@')[0] || 'Aluno',
+              created_date: data.created_at
+            };
+          },
+          create: async (payload) => {
+            const mappedPayload = mapPayload(payload);
+            const { data, error } = await supabase.from('class_students').insert(mappedPayload).select().single();
+            if (error) throw error;
+            const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', data.user_id).single();
+            return {
+              ...data,
+              student_name: profile?.full_name || data.student_name || data.student_email?.split('@')[0] || 'Aluno',
+              created_date: data.created_at
+            };
+          },
+          update: async (id, payload) => {
+            const mappedPayload = mapPayload(payload);
+            const { data, error } = await supabase.from('class_students').update(mappedPayload).eq('id', id).select().single();
+            if (error) throw error;
+            const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', data.user_id).single();
+            return {
+              ...data,
+              student_name: profile?.full_name || data.student_name || data.student_email?.split('@')[0] || 'Aluno',
+              created_date: data.created_at
+            };
+          },
+          delete: async (id) => {
+            const { error } = await supabase.from('class_students').delete().eq('id', id);
+            if (error) throw error;
+            return true;
+          }
+        };
       }
 
       // Map entity names to table names (snake_case)
