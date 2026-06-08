@@ -61,3 +61,18 @@ O chat ao vivo (disponível em `/Chat` para alunos e `/AdminChat` para professor
   - O professor visualiza todas as salas ativas de alunos e responde individualmente a cada um no painel de chat do admin.
 - **Controle de Leitura**:
   - O sistema rastreia o número de mensagens não lidas (`unread_count_student` e `unread_count_teacher`) para sinalizar novas notificações no painel.
+
+---
+
+## 5. Planejamento: Integração de Chat em Grupo e Individual
+
+Esta seção descreve a arquitetura planejada para permitir conversas em grupo ao lado do chat individual.
+
+- **Diferenciação de Salas (`chat_rooms`)**:
+  - A tabela `chat_rooms` contará com um campo `is_group` (booleano) para separar mensagens diretas (DM) de chats de turmas/grupos.
+  - Para grupos, o campo `title` armazenará o nome do grupo (ex: *"Dúvidas - Radiologia 2026"*).
+- **Associação de Membros (`chat_room_members`)**:
+  - Uma nova tabela intermediária associará múltiplos usuários (IDs de alunos e professores) a uma única sala de grupo.
+  - O carregamento da barra lateral de chats buscará todas as salas onde o ID do usuário conectado esteja presente nesta lista de membros.
+- **Identificação de Remetente nas Mensagens**:
+  - Nas conversas em grupo, o frontend lerá o campo `sender_name` para exibir o nome do aluno ou professor ao lado do texto da mensagem, permitindo identificar quem enviou cada resposta na conversa coletiva.
