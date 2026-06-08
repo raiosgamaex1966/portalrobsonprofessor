@@ -150,9 +150,9 @@ export const base44 = {
               return {
                 ...item,
                 student_id: item.user_id,
-                student_name: name || 'Aluno',
-                student_email: email || '',
-                last_message: name ? `Conversa com ${name}` : 'Nova conversa',
+                student_name: item.is_group ? item.title : (name || 'Aluno'),
+                student_email: item.is_group ? 'Grupo' : (email || ''),
+                last_message: item.is_group ? `Grupo: ${item.title}` : (name ? `Conversa com ${name}` : 'Nova conversa'),
                 last_message_at: item.last_message_at || item.created_at,
                 created_date: item.created_at
               };
@@ -160,17 +160,24 @@ export const base44 = {
           },
           filter: async (filters, order = '-created_at') => {
             order = mapOrder(order);
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return [];
+            
+            const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+            const isAdmin = profile?.role === 'admin';
+            
             let query = supabase.from('chat_rooms').select('*');
             
-            if (filters.student_email) {
-              const { data: { user } } = await supabase.auth.getUser();
-              if (user && user.email === filters.student_email) {
-                query = query.eq('user_id', user.id);
-              } else {
+            if (!isAdmin) {
+              const { data: memberships } = await supabase.from('chat_room_members').select('room_id').eq('user_id', user.id);
+              const roomIds = (memberships || []).map(m => m.room_id);
+              
+              const idsCondition = roomIds.length > 0 ? `,id.in.(${roomIds.join(',')})` : '';
+              query = query.or(`user_id.eq.${user.id}${idsCondition}`);
+            } else {
+              if (filters.student_email) {
                 query = query.like('title', `%|${filters.student_email}`);
               }
-            } else if (filters.user_id) {
-              query = query.eq('user_id', filters.user_id);
             }
             
             const { data, error } = await query.order(order.startsWith('-') ? order.substring(1) : order, { ascending: !order.startsWith('-') });
@@ -180,9 +187,9 @@ export const base44 = {
               return {
                 ...item,
                 student_id: item.user_id,
-                student_name: name || 'Aluno',
-                student_email: email || '',
-                last_message: name ? `Conversa com ${name}` : 'Nova conversa',
+                student_name: item.is_group ? item.title : (name || 'Aluno'),
+                student_email: item.is_group ? 'Grupo' : (email || ''),
+                last_message: item.is_group ? `Grupo: ${item.title}` : (name ? `Conversa com ${name}` : 'Nova conversa'),
                 last_message_at: item.last_message_at || item.created_at,
                 created_date: item.created_at
               };
@@ -195,31 +202,44 @@ export const base44 = {
             return {
               ...data,
               student_id: data.user_id,
-              student_name: name || 'Aluno',
-              student_email: email || '',
-              last_message: name ? `Conversa com ${name}` : 'Nova conversa',
+              student_name: data.is_group ? data.title : (name || 'Aluno'),
+              student_email: data.is_group ? 'Grupo' : (email || ''),
+              last_message: data.is_group ? `Grupo: ${data.title}` : (name ? `Conversa com ${name}` : 'Nova conversa'),
               last_message_at: data.last_message_at || data.created_at,
               created_date: data.created_at
             };
           },
           create: async (payload) => {
             const { data: { user } } = await supabase.auth.getUser();
-            const studentName = payload.student_name || user?.user_metadata?.full_name || 'Aluno';
-            const studentEmail = payload.student_email || user?.email || '';
-            const dbPayload = {
-              user_id: payload.student_id || user?.id,
-              title: `${studentName}|${studentEmail}`,
-              last_message_at: payload.last_message_at || new Date().toISOString()
-            };
+            let dbPayload = {};
+            
+            if (payload.is_group) {
+              dbPayload = {
+                title: payload.title || 'Novo Grupo',
+                is_group: true,
+                user_id: user?.id
+              };
+            } else {
+              const studentName = payload.student_name || user?.user_metadata?.full_name || 'Aluno';
+              const studentEmail = payload.student_email || user?.email || '';
+              dbPayload = {
+                user_id: payload.student_id || user?.id,
+                title: `${studentName}|${studentEmail}`,
+                is_group: false,
+                last_message_at: payload.last_message_at || new Date().toISOString()
+              };
+            }
+            
             const { data, error } = await supabase.from('chat_rooms').insert(dbPayload).select().single();
             if (error) throw error;
+            
             const [name, email] = (data.title || '').split('|');
             return {
               ...data,
               student_id: data.user_id,
-              student_name: name || 'Aluno',
-              student_email: email || '',
-              last_message: name ? `Conversa com ${name}` : 'Nova conversa',
+              student_name: data.is_group ? data.title : (name || 'Aluno'),
+              student_email: data.is_group ? 'Grupo' : (email || ''),
+              last_message: name ? (data.is_group ? data.title : `Conversa com ${name}`) : 'Nova conversa',
               last_message_at: data.last_message_at || data.created_at,
               created_date: data.created_at
             };
@@ -233,8 +253,8 @@ export const base44 = {
             return {
               ...data,
               student_id: data.user_id,
-              student_name: name || 'Aluno',
-              student_email: email || '',
+              student_name: data.is_group ? data.title : (name || 'Aluno'),
+              student_email: data.is_group ? 'Grupo' : (email || ''),
               last_message_at: data.last_message_at || data.created_at,
               created_date: data.created_at
             };
@@ -257,13 +277,21 @@ export const base44 = {
             }
             const { data, error } = await query.order(order.startsWith('-') ? order.substring(1) : order, { ascending: !order.startsWith('-') });
             if (error) throw error;
+
+            const { data: profiles } = await supabase.from('profiles').select('id, full_name');
+            const profileMap = {};
+            (profiles || []).forEach(p => {
+              profileMap[p.id] = p.full_name;
+            });
+
             return (data || []).map(item => {
               const isUser = item.role === 'user';
+              const name = profileMap[item.sender_id] || (isUser ? 'Aluno' : 'Professor');
               return {
                 id: item.id,
                 room_id: item.room_id,
                 sender_id: item.sender_id,
-                sender_name: isUser ? 'Aluno' : 'Professor',
+                sender_name: name,
                 sender_role: isUser ? 'student' : 'teacher',
                 message: item.content,
                 created_date: item.created_at
@@ -279,12 +307,16 @@ export const base44 = {
             };
             const { data, error } = await supabase.from('chat_messages').insert(dbPayload).select().single();
             if (error) throw error;
+            
+            const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', data.sender_id).single();
             const isUser = data.role === 'user';
+            const name = profile?.full_name || (isUser ? 'Aluno' : 'Professor');
+
             return {
               id: data.id,
               room_id: data.room_id,
               sender_id: data.sender_id,
-              sender_name: isUser ? 'Aluno' : 'Professor',
+              sender_name: name,
               sender_role: isUser ? 'student' : 'teacher',
               message: data.content,
               created_date: data.created_at
@@ -300,14 +332,16 @@ export const base44 = {
                   schema: 'public',
                   table: 'chat_messages'
                 },
-                (payload) => {
+                async (payload) => {
                   const item = payload.new;
                   const isUser = item.role === 'user';
+                  const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', item.sender_id).single();
+                  const name = profile?.full_name || (isUser ? 'Aluno' : 'Professor');
                   const mappedData = {
                     id: item.id,
                     room_id: item.room_id,
                     sender_id: item.sender_id,
-                    sender_name: isUser ? 'Aluno' : 'Professor',
+                    sender_name: name,
                     sender_role: isUser ? 'student' : 'teacher',
                     message: item.content,
                     created_date: item.created_at
@@ -334,6 +368,7 @@ export const base44 = {
         'material': 'materials',
         'chat_room': 'chat_rooms',
         'chat_message': 'chat_messages',
+        'chat_room_member': 'chat_room_members',
         'class': 'classes',
         'class_student': 'class_students',
         'test': 'tests',

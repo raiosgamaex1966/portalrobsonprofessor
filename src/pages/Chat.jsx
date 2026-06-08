@@ -163,62 +163,125 @@ export default function Chat() {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-8">
-        <Card className="h-[600px] flex flex-col">
-          <CardHeader className="border-b">
-            <CardTitle className="flex items-center gap-2">
-              <Users className="w-5 h-5" />
-              Conversa com Professor
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 flex flex-col p-0">
-            {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              {messages.length === 0 ? (
-                <div className="text-center py-12">
-                  <MessageSquare className="w-16 h-16 mx-auto text-slate-300 mb-4" />
-                  <p className="text-slate-500">Nenhuma mensagem ainda. Envie a primeira!</p>
-                </div>
+        <div className="grid lg:grid-cols-3 gap-6">
+          {/* Salas Sidebar */}
+          <Card className="lg:col-span-1 h-[600px] overflow-y-auto">
+            <CardHeader className="border-b p-4">
+              <CardTitle className="text-base font-bold flex items-center gap-2">
+                <Users className="w-4 h-4 text-[#1e3a5f]" />
+                Canais de Conversa
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 space-y-2">
+              {rooms.length === 0 ? (
+                <p className="text-center py-8 text-slate-500 text-sm">Nenhuma conversa ativada</p>
               ) : (
-                messages.map((msg, index) => {
-                  const isOwn = msg.sender_id === user.id;
+                rooms.map((room) => {
+                  const isSelected = selectedRoom?.id === room.id;
                   return (
-                    <motion.div
-                      key={msg.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.02 }}
-                      className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
+                    <div
+                      key={room.id}
+                      onClick={() => setSelectedRoom(room)}
+                      className={`p-3 rounded-xl cursor-pointer transition-all border ${
+                        isSelected 
+                          ? 'bg-[#1e3a5f] text-white border-[#1e3a5f]' 
+                          : 'bg-white hover:bg-slate-50 border-slate-100'
+                      }`}
                     >
-                      <div className={`max-w-[70%] ${isOwn ? 'bg-[#1e3a5f] text-white' : 'bg-slate-100 text-slate-800'} rounded-lg p-3`}>
-                        <p className="text-sm font-medium mb-1">{msg.sender_name}</p>
-                        <p className="text-sm">{msg.message}</p>
-                        <p className={`text-xs mt-1 ${isOwn ? 'text-blue-200' : 'text-slate-500'}`}>
-                          {format(new Date(msg.created_date), 'HH:mm', { locale: ptBR })}
-                        </p>
+                      <div className="flex items-center justify-between mb-1 flex-wrap gap-1">
+                        <span className="font-bold text-xs sm:text-sm truncate">
+                          {room.is_group ? room.student_name : 'Dúvidas com Professor'}
+                        </span>
+                        {room.is_group && (
+                          <Badge className="bg-blue-500/10 text-blue-500 border border-blue-500/20 text-[9px] py-0 px-1.5 rounded-full font-semibold">
+                            Grupo
+                          </Badge>
+                        )}
                       </div>
-                    </motion.div>
+                      <p className={`text-xs truncate ${isSelected ? 'text-blue-200' : 'text-slate-500'}`}>
+                        {room.last_message || 'Clique para ver a conversa'}
+                      </p>
+                    </div>
                   );
                 })
               )}
-              <div ref={messagesEndRef} />
-            </div>
+            </CardContent>
+          </Card>
 
-            {/* Input Area */}
-            <div className="border-t p-4">
-              <form onSubmit={handleSendMessage} className="flex gap-2">
-                <Input
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Digite sua mensagem..."
-                  className="flex-1"
-                />
-                <Button type="submit" disabled={!newMessage.trim()}>
-                  <Send className="w-4 h-4" />
-                </Button>
-              </form>
-            </div>
-          </CardContent>
-        </Card>
+          {/* Área do Chat */}
+          <Card className="lg:col-span-2 h-[600px] flex flex-col">
+            <CardContent className="flex-1 flex flex-col p-0 h-full">
+              {selectedRoom ? (
+                <>
+                  <div className="border-b p-4 bg-[#1e3a5f]/5 flex justify-between items-center">
+                    <div>
+                      <h3 className="font-bold text-base text-slate-800">
+                        {selectedRoom.is_group ? selectedRoom.student_name : 'Conversa Direta com Professor'}
+                      </h3>
+                      <p className="text-xs text-slate-500">
+                        {selectedRoom.is_group ? 'Canal de debate público' : 'Mensagens diretas privadas'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto p-6 space-y-4 max-h-[420px]">
+                    {messages.length === 0 ? (
+                      <div className="text-center py-12">
+                        <MessageSquare className="w-16 h-16 mx-auto text-slate-300 mb-4" />
+                        <p className="text-slate-500">Nenhuma mensagem ainda. Envie a primeira!</p>
+                      </div>
+                    ) : (
+                      messages.map((msg, index) => {
+                        const isOwn = msg.sender_id === user.id;
+                        return (
+                          <motion.div
+                            key={msg.id}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: index * 0.02 }}
+                            className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
+                          >
+                            <div className={`max-w-[75%] ${isOwn ? 'bg-[#1e3a5f] text-white' : 'bg-slate-100 text-slate-800'} rounded-2xl px-4 py-2.5 shadow-sm`}>
+                              {!isOwn && (
+                                <p className="text-[10px] font-bold text-amber-600 mb-0.5">
+                                  {msg.sender_name}
+                                </p>
+                              )}
+                              <p className="text-sm leading-relaxed">{msg.message}</p>
+                              <p className={`text-[9px] mt-1 text-right ${isOwn ? 'text-blue-200' : 'text-slate-400'}`}>
+                                {format(new Date(msg.created_date), 'HH:mm', { locale: ptBR })}
+                              </p>
+                            </div>
+                          </motion.div>
+                        );
+                      })
+                    )}
+                    <div ref={messagesEndRef} />
+                  </div>
+
+                  {/* Área de Input */}
+                  <div className="border-t p-4 mt-auto">
+                    <form onSubmit={handleSendMessage} className="flex gap-2">
+                      <Input
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value)}
+                        placeholder="Digite sua mensagem..."
+                        className="flex-1 rounded-xl"
+                      />
+                      <Button type="submit" disabled={!newMessage.trim()} className="bg-[#1e3a5f] hover:bg-[#2d4a6f] rounded-xl px-4">
+                        <Send className="w-4 h-4" />
+                      </Button>
+                    </form>
+                  </div>
+                </>
+              ) : (
+                <div className="flex-1 flex items-center justify-center">
+                  <p className="text-slate-500">Selecione uma conversa</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
