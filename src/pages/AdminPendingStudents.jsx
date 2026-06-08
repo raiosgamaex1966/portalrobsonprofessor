@@ -149,6 +149,28 @@ export default function AdminPendingStudents() {
     }
   };
 
+  const handleResendInvite = async (student) => {
+    setProcessing(student.id);
+    try {
+      const result = await base44.users.resetPassword(student.email);
+      const tempPassword = result.password;
+      
+      setSuccessData({
+        email: student.email,
+        fullName: student.full_name,
+        password: tempPassword,
+        alreadyRegistered: false
+      });
+      
+      setSuccessDialogOpen(true);
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      alert('Erro ao reenviar convite: ' + error.message);
+    } finally {
+      setProcessing(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -355,16 +377,26 @@ export default function AdminPendingStudents() {
                           </p>
                         )}
 
-                        <Button
-                          onClick={() => handleDelete(student.id)}
-                          disabled={processing === student.id}
-                          variant="outline"
-                          size="sm"
-                          className="w-full text-red-600 hover:bg-red-50 border-red-200 mt-3"
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Excluir Cadastro
-                        </Button>
+                        <div className="flex gap-2 mt-3">
+                          <Button
+                            onClick={() => handleResendInvite(student)}
+                            disabled={processing === student.id}
+                            className="flex-1 bg-[#1e3a5f] hover:bg-[#2d4a6f] text-white"
+                            size="sm"
+                          >
+                            <Mail className="w-4 h-4 mr-2" />
+                            {processing === student.id ? 'Gerando...' : 'Reenviar Acesso'}
+                          </Button>
+                          <Button
+                            onClick={() => handleDelete(student.id)}
+                            disabled={processing === student.id}
+                            variant="outline"
+                            size="sm"
+                            className="text-red-600 hover:bg-red-50 border-red-200"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </CardContent>
                     </Card>
                   </motion.div>

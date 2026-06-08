@@ -577,6 +577,24 @@ export const base44 = {
         return { email, password: tempPassword };
       }
       throw new Error('Supabase Service Role Key não configurada.');
+    },
+    resetPassword: async (email) => {
+      if (supabaseAdmin) {
+        const { data, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+        if (listError) throw listError;
+        
+        const targetUser = data.users.find(u => u.email === email);
+        if (!targetUser) throw new Error('Usuário não encontrado.');
+        
+        const tempPassword = Math.random().toString(36).slice(-8) + 'A1!';
+        const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(targetUser.id, {
+          password: tempPassword
+        });
+        if (updateError) throw updateError;
+        
+        return { email, password: tempPassword };
+      }
+      throw new Error('Supabase Service Role Key não configurada.');
     }
   },
 
