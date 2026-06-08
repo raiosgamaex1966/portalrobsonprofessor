@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { base44 } from "@/api/base44Client";
-import { ArrowLeft, Plus, Trash2, Users } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Users, Pencil } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 import { Button } from "@/components/ui/button";
@@ -181,21 +181,34 @@ export default function AdminDisciplineClasses() {
               {paginatedDisciplines.map((discipline) => {
                 const linkedClasses = getClassesForDiscipline(discipline.id);
                 return (
-                  <Card key={discipline.id} className="shadow-lg">
-                    <CardHeader>
-                      <div className="flex items-center gap-3 mb-3">
+                  <Card key={discipline.id} className="shadow-lg hover:shadow-xl transition-shadow">
+                    <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+                      <div className="flex items-center gap-3">
                         <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${discipline.color || 'from-blue-500 to-blue-600'} flex items-center justify-center`}>
                           <Users className="w-6 h-6 text-white" />
                         </div>
                         <div>
-                          <h3 className="text-lg font-bold">{discipline.name}</h3>
+                          <h3 className="text-lg font-bold leading-tight">{discipline.name}</h3>
                           <p className="text-xs text-slate-500">{linkedClasses.length} turma(s)</p>
                         </div>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setSelectedDiscipline(discipline.id);
+                          setSelectedClass('');
+                          setShowDialog(true);
+                        }}
+                        className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 h-9 w-9 rounded-xl"
+                        title="Vincular Turma"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
                     </CardHeader>
                     <CardContent>
                       {linkedClasses.length > 0 ? (
-                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                        <div className="space-y-2 max-h-48 overflow-y-auto mt-2">
                           {linkedClasses.map((dc) => {
                             const classData = classes.find(c => c.id === dc.class_id);
                             return (
@@ -222,9 +235,22 @@ export default function AdminDisciplineClasses() {
                           })}
                         </div>
                       ) : (
-                        <p className="text-center py-6 text-slate-500 text-sm">
-                          Nenhuma turma vinculada
-                        </p>
+                        <div className="text-center py-6">
+                          <p className="text-slate-500 text-sm mb-3">Nenhuma turma vinculada</p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedDiscipline(discipline.id);
+                              setSelectedClass('');
+                              setShowDialog(true);
+                            }}
+                            className="text-xs border-dashed"
+                          >
+                            <Plus className="w-3.5 h-3.5 mr-1" />
+                            Vincular Turma
+                          </Button>
+                        </div>
                       )}
                     </CardContent>
                   </Card>
