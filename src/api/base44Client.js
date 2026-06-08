@@ -95,7 +95,9 @@ export const base44 = {
       if (entityName === 'User') {
         return {
           list: async () => {
-            const { data: profiles } = await supabase.from('profiles').select('id, full_name, role');
+            // Use supabaseAdmin to bypass RLS and fetch ALL profiles
+            const profilesClient = supabaseAdmin || supabase;
+            const { data: profiles } = await profilesClient.from('profiles').select('id, full_name, role');
             const profileMap = {};
             (profiles || []).forEach(p => {
               profileMap[p.id] = p;
@@ -127,7 +129,9 @@ export const base44 = {
             }));
           },
           filter: async (filters) => {
-            const { data: profiles } = await supabase.from('profiles').select('id, full_name, role');
+            // Use supabaseAdmin to bypass RLS and fetch ALL profiles
+            const profilesClient = supabaseAdmin || supabase;
+            const { data: profiles } = await profilesClient.from('profiles').select('id, full_name, role');
             const profileMap = {};
             (profiles || []).forEach(p => {
               profileMap[p.id] = p;
@@ -470,7 +474,8 @@ export const base44 = {
             const userIds = [...new Set((data || []).map(item => item.user_id))];
             const profileMap = {};
             if (userIds.length > 0) {
-              const { data: profiles } = await supabase
+              const profilesClient = supabaseAdmin || supabase;
+              const { data: profiles } = await profilesClient
                 .from('profiles')
                 .select('id, full_name, role')
                 .in('id', userIds);
@@ -500,7 +505,8 @@ export const base44 = {
             const userIds = [...new Set((data || []).map(item => item.user_id))];
             const profileMap = {};
             if (userIds.length > 0) {
-              const { data: profiles } = await supabase
+              const profilesClient = supabaseAdmin || supabase;
+              const { data: profiles } = await profilesClient
                 .from('profiles')
                 .select('id, full_name, role')
                 .in('id', userIds);
@@ -521,7 +527,8 @@ export const base44 = {
           get: async (id) => {
             const { data, error } = await supabase.from('class_students').select('*').eq('id', id).single();
             if (error) throw error;
-            const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', data.user_id).single();
+            const profilesClient = supabaseAdmin || supabase;
+            const { data: profile } = await profilesClient.from('profiles').select('full_name').eq('id', data.user_id).single();
             return {
               ...data,
               student_name: profile?.full_name || data.student_name || data.student_email?.split('@')[0] || 'Aluno',
@@ -532,7 +539,8 @@ export const base44 = {
             const mappedPayload = mapPayload(payload);
             const { data, error } = await supabase.from('class_students').insert(mappedPayload).select().single();
             if (error) throw error;
-            const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', data.user_id).single();
+            const profilesClient = supabaseAdmin || supabase;
+            const { data: profile } = await profilesClient.from('profiles').select('full_name').eq('id', data.user_id).single();
             return {
               ...data,
               student_name: profile?.full_name || data.student_name || data.student_email?.split('@')[0] || 'Aluno',
@@ -543,7 +551,8 @@ export const base44 = {
             const mappedPayload = mapPayload(payload);
             const { data, error } = await supabase.from('class_students').update(mappedPayload).eq('id', id).select().single();
             if (error) throw error;
-            const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', data.user_id).single();
+            const profilesClient = supabaseAdmin || supabase;
+            const { data: profile } = await profilesClient.from('profiles').select('full_name').eq('id', data.user_id).single();
             return {
               ...data,
               student_name: profile?.full_name || data.student_name || data.student_email?.split('@')[0] || 'Aluno',
