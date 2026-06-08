@@ -51,7 +51,7 @@ export default function AdminClassStudents() {
       // Get all users with role "user" (alunos) not yet in this class
       const studentUserIds = classStudents.map(s => s.user_id);
       const availableUsers = allUsers.filter(u => 
-        u.role === 'user' && !studentUserIds.includes(u.id)
+        u.role !== 'admin' && !studentUserIds.includes(u.id)
       );
       
       // Map users to profile format
