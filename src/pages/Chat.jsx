@@ -48,51 +48,65 @@ export default function Chat() {
   }, [messages]);
 
   const loadData = async () => {
-    const isAuth = await base44.auth.isAuthenticated();
-    if (!isAuth) {
-      base44.auth.redirectToLogin();
-      return;
+    try {
+      const isAuth = await base44.auth.isAuthenticated();
+      if (!isAuth) {
+        base44.auth.redirectToLogin();
+        return;
+      }
+
+      const currentUser = await base44.auth.me();
+      setUser(currentUser);
+
+      // Load or create chat rooms
+      const userRooms = await base44.entities.ChatRoom.filter({ student_email: currentUser.email });
+      
+      if (userRooms.length === 0) {
+        // Create a new room with the teacher
+        const newRoom = await base44.entities.ChatRoom.create({
+          student_id: currentUser.id,
+          student_email: currentUser.email,
+          student_name: currentUser.full_name,
+          last_message: 'Nova conversa',
+          last_message_at: new Date().toISOString()
+        });
+        setRooms([newRoom]);
+        setSelectedRoom(newRoom);
+      } else {
+        setRooms(userRooms);
+        setSelectedRoom(userRooms[0]);
+      }
+    } catch (error) {
+      console.error('Error loading chat data:', error);
+      toast.error('Erro ao carregar o chat: ' + (error.message || 'Erro na conexão com o servidor.'));
+    } finally {
+      setLoading(false);
     }
-
-    const currentUser = await base44.auth.me();
-    setUser(currentUser);
-
-    // Load or create chat rooms
-    const userRooms = await base44.entities.ChatRoom.filter({ student_email: currentUser.email });
-    
-    if (userRooms.length === 0) {
-      // Create a new room with the teacher
-      const newRoom = await base44.entities.ChatRoom.create({
-        student_id: currentUser.id,
-        student_email: currentUser.email,
-        student_name: currentUser.full_name,
-        last_message: 'Nova conversa',
-        last_message_at: new Date().toISOString()
-      });
-      setRooms([newRoom]);
-      setSelectedRoom(newRoom);
-    } else {
-      setRooms(userRooms);
-      setSelectedRoom(userRooms[0]);
-    }
-
-    setLoading(false);
   };
 
   const loadMessages = async () => {
     if (!selectedRoom) return;
-    const roomMessages = await base44.entities.ChatMessage.filter(
-      { room_id: selectedRoom.id },
-      'created_date'
-    );
-    setMessages(roomMessages);
+    try {
+      const roomMessages = await base44.entities.ChatMessage.filter(
+        { room_id: selectedRoom.id },
+        'created_date'
+      );
+      setMessages(roomMessages);
+    } catch (error) {
+      console.error('Error loading messages:', error);
+      toast.error('Erro ao carregar mensagens.');
+    }
   };
 
   const markAsRead = async () => {
     if (!selectedRoom || !user) return;
-    await base44.entities.ChatRoom.update(selectedRoom.id, {
-      unread_count_student: 0
-    });
+    try {
+      await base44.entities.ChatRoom.update(selectedRoom.id, {
+        unread_count_student: 0
+      });
+    } catch (error) {
+      console.warn('Error marking messages as read:', error);
+    }
   };
 
   const handleSendMessage = async (e) => {

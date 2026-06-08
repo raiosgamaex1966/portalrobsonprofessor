@@ -136,6 +136,194 @@ export const base44 = {
         };
       }
 
+      if (entityName === 'ChatRoom') {
+        return {
+          list: async (order = '-created_at') => {
+            order = mapOrder(order);
+            const { data, error } = await supabase
+              .from('chat_rooms')
+              .select('*')
+              .order(order.startsWith('-') ? order.substring(1) : order, { ascending: !order.startsWith('-') });
+            if (error) throw error;
+            return (data || []).map(item => {
+              const [name, email] = (item.title || '').split('|');
+              return {
+                ...item,
+                student_id: item.user_id,
+                student_name: name || 'Aluno',
+                student_email: email || '',
+                last_message: name ? `Conversa com ${name}` : 'Nova conversa',
+                last_message_at: item.last_message_at || item.created_at,
+                created_date: item.created_at
+              };
+            });
+          },
+          filter: async (filters, order = '-created_at') => {
+            order = mapOrder(order);
+            let query = supabase.from('chat_rooms').select('*');
+            
+            if (filters.student_email) {
+              const { data: { user } } = await supabase.auth.getUser();
+              if (user && user.email === filters.student_email) {
+                query = query.eq('user_id', user.id);
+              } else {
+                query = query.like('title', `%|${filters.student_email}`);
+              }
+            } else if (filters.user_id) {
+              query = query.eq('user_id', filters.user_id);
+            }
+            
+            const { data, error } = await query.order(order.startsWith('-') ? order.substring(1) : order, { ascending: !order.startsWith('-') });
+            if (error) throw error;
+            return (data || []).map(item => {
+              const [name, email] = (item.title || '').split('|');
+              return {
+                ...item,
+                student_id: item.user_id,
+                student_name: name || 'Aluno',
+                student_email: email || '',
+                last_message: name ? `Conversa com ${name}` : 'Nova conversa',
+                last_message_at: item.last_message_at || item.created_at,
+                created_date: item.created_at
+              };
+            });
+          },
+          get: async (id) => {
+            const { data, error } = await supabase.from('chat_rooms').select('*').eq('id', id).single();
+            if (error) throw error;
+            const [name, email] = (data.title || '').split('|');
+            return {
+              ...data,
+              student_id: data.user_id,
+              student_name: name || 'Aluno',
+              student_email: email || '',
+              last_message: name ? `Conversa com ${name}` : 'Nova conversa',
+              last_message_at: data.last_message_at || data.created_at,
+              created_date: data.created_at
+            };
+          },
+          create: async (payload) => {
+            const { data: { user } } = await supabase.auth.getUser();
+            const studentName = payload.student_name || user?.user_metadata?.full_name || 'Aluno';
+            const studentEmail = payload.student_email || user?.email || '';
+            const dbPayload = {
+              user_id: payload.student_id || user?.id,
+              title: `${studentName}|${studentEmail}`,
+              last_message_at: payload.last_message_at || new Date().toISOString()
+            };
+            const { data, error } = await supabase.from('chat_rooms').insert(dbPayload).select().single();
+            if (error) throw error;
+            const [name, email] = (data.title || '').split('|');
+            return {
+              ...data,
+              student_id: data.user_id,
+              student_name: name || 'Aluno',
+              student_email: email || '',
+              last_message: name ? `Conversa com ${name}` : 'Nova conversa',
+              last_message_at: data.last_message_at || data.created_at,
+              created_date: data.created_at
+            };
+          },
+          update: async (id, payload) => {
+            const dbPayload = {};
+            if (payload.last_message_at) dbPayload.last_message_at = payload.last_message_at;
+            const { data, error } = await supabase.from('chat_rooms').update(dbPayload).eq('id', id).select().single();
+            if (error) throw error;
+            const [name, email] = (data.title || '').split('|');
+            return {
+              ...data,
+              student_id: data.user_id,
+              student_name: name || 'Aluno',
+              student_email: email || '',
+              last_message_at: data.last_message_at || data.created_at,
+              created_date: data.created_at
+            };
+          },
+          delete: async (id) => {
+            const { error } = await supabase.from('chat_rooms').delete().eq('id', id);
+            if (error) throw error;
+            return true;
+          }
+        };
+      }
+
+      if (entityName === 'ChatMessage') {
+        return {
+          filter: async (filters, order = 'created_at') => {
+            order = mapOrder(order);
+            let query = supabase.from('chat_messages').select('*');
+            if (filters.room_id) {
+              query = query.eq('room_id', filters.room_id);
+            }
+            const { data, error } = await query.order(order.startsWith('-') ? order.substring(1) : order, { ascending: !order.startsWith('-') });
+            if (error) throw error;
+            return (data || []).map(item => {
+              const isUser = item.role === 'user';
+              return {
+                id: item.id,
+                room_id: item.room_id,
+                sender_id: item.sender_id,
+                sender_name: isUser ? 'Aluno' : 'Professor',
+                sender_role: isUser ? 'student' : 'teacher',
+                message: item.content,
+                created_date: item.created_at
+              };
+            });
+          },
+          create: async (payload) => {
+            const dbPayload = {
+              room_id: payload.room_id,
+              sender_id: payload.sender_id,
+              role: payload.sender_role === 'student' ? 'user' : 'assistant',
+              content: payload.message
+            };
+            const { data, error } = await supabase.from('chat_messages').insert(dbPayload).select().single();
+            if (error) throw error;
+            const isUser = data.role === 'user';
+            return {
+              id: data.id,
+              room_id: data.room_id,
+              sender_id: data.sender_id,
+              sender_name: isUser ? 'Aluno' : 'Professor',
+              sender_role: isUser ? 'student' : 'teacher',
+              message: data.content,
+              created_date: data.created_at
+            };
+          },
+          subscribe: (callback) => {
+            const channel = supabase
+              .channel('schema-db-changes')
+              .on(
+                'postgres_changes',
+                {
+                  event: 'INSERT',
+                  schema: 'public',
+                  table: 'chat_messages'
+                },
+                (payload) => {
+                  const item = payload.new;
+                  const isUser = item.role === 'user';
+                  const mappedData = {
+                    id: item.id,
+                    room_id: item.room_id,
+                    sender_id: item.sender_id,
+                    sender_name: isUser ? 'Aluno' : 'Professor',
+                    sender_role: isUser ? 'student' : 'teacher',
+                    message: item.content,
+                    created_date: item.created_at
+                  };
+                  callback({ type: 'create', data: mappedData });
+                }
+              )
+              .subscribe();
+
+            return () => {
+              supabase.removeChannel(channel);
+            };
+          }
+        };
+      }
+
       // Map entity names to table names (snake_case)
       let tableName = entityName.replace(/([A-Z])/g, "_$1").toLowerCase().replace(/^_/, "");
       
