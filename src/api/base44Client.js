@@ -55,12 +55,22 @@ export const base44 = {
     me: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
+        // Tenta obter o nome completo da tabela 'profiles' para ser o nome oficial
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name, role')
+          .eq('id', user.id)
+          .single();
+
+        const name = profile?.full_name || user.user_metadata?.full_name || user.email.split('@')[0];
+        const role = profile?.role || user.user_metadata?.role || 'user';
+
         return {
           id: user.id,
           email: user.email,
-          role: user.user_metadata?.role || 'user',
-          name: user.user_metadata?.full_name || user.email.split('@')[0],
-          full_name: user.user_metadata?.full_name || user.email.split('@')[0]
+          role,
+          name,
+          full_name: name
         };
       }
       return null;
@@ -145,13 +155,29 @@ export const base44 = {
               .select('*')
               .order(order.startsWith('-') ? order.substring(1) : order, { ascending: !order.startsWith('-') });
             if (error) throw error;
+
+            const userIds = [...new Set((data || []).filter(item => !item.is_group).map(item => item.user_id))];
+            const profileMap = {};
+            if (userIds.length > 0) {
+              const { data: profiles } = await supabase
+                .from('profiles')
+                .select('id, full_name, email')
+                .in('id', userIds);
+              (profiles || []).forEach(p => {
+                profileMap[p.id] = p;
+              });
+            }
+
             return (data || []).map(item => {
-              const [name, email] = (item.title || '').split('|');
+              const [titleName, titleEmail] = (item.title || '').split('|');
+              const profile = profileMap[item.user_id];
+              const name = item.is_group ? item.title : (profile?.full_name || titleName || 'Aluno');
+              const email = item.is_group ? 'Grupo' : (profile?.email || titleEmail || '');
               return {
                 ...item,
                 student_id: item.user_id,
-                student_name: item.is_group ? item.title : (name || 'Aluno'),
-                student_email: item.is_group ? 'Grupo' : (email || ''),
+                student_name: name,
+                student_email: email,
                 last_message: item.is_group ? `Grupo: ${item.title}` : (name ? `Conversa com ${name}` : 'Nova conversa'),
                 last_message_at: item.last_message_at || item.created_at,
                 created_date: item.created_at
@@ -182,13 +208,29 @@ export const base44 = {
             
             const { data, error } = await query.order(order.startsWith('-') ? order.substring(1) : order, { ascending: !order.startsWith('-') });
             if (error) throw error;
+
+            const userIds = [...new Set((data || []).filter(item => !item.is_group).map(item => item.user_id))];
+            const profileMap = {};
+            if (userIds.length > 0) {
+              const { data: profiles } = await supabase
+                .from('profiles')
+                .select('id, full_name, email')
+                .in('id', userIds);
+              (profiles || []).forEach(p => {
+                profileMap[p.id] = p;
+              });
+            }
+
             return (data || []).map(item => {
-              const [name, email] = (item.title || '').split('|');
+              const [titleName, titleEmail] = (item.title || '').split('|');
+              const profile = profileMap[item.user_id];
+              const name = item.is_group ? item.title : (profile?.full_name || titleName || 'Aluno');
+              const email = item.is_group ? 'Grupo' : (profile?.email || titleEmail || '');
               return {
                 ...item,
                 student_id: item.user_id,
-                student_name: item.is_group ? item.title : (name || 'Aluno'),
-                student_email: item.is_group ? 'Grupo' : (email || ''),
+                student_name: name,
+                student_email: email,
                 last_message: item.is_group ? `Grupo: ${item.title}` : (name ? `Conversa com ${name}` : 'Nova conversa'),
                 last_message_at: item.last_message_at || item.created_at,
                 created_date: item.created_at
@@ -198,12 +240,25 @@ export const base44 = {
           get: async (id) => {
             const { data, error } = await supabase.from('chat_rooms').select('*').eq('id', id).single();
             if (error) throw error;
-            const [name, email] = (data.title || '').split('|');
+
+            let name = 'Aluno';
+            let email = '';
+            
+            if (!data.is_group) {
+              const { data: profile } = await supabase.from('profiles').select('full_name, email').eq('id', data.user_id).single();
+              const [titleName, titleEmail] = (data.title || '').split('|');
+              name = profile?.full_name || titleName || 'Aluno';
+              email = profile?.email || titleEmail || '';
+            } else {
+              name = data.title;
+              email = 'Grupo';
+            }
+
             return {
               ...data,
               student_id: data.user_id,
-              student_name: data.is_group ? data.title : (name || 'Aluno'),
-              student_email: data.is_group ? 'Grupo' : (email || ''),
+              student_name: name,
+              student_email: email,
               last_message: data.is_group ? `Grupo: ${data.title}` : (name ? `Conversa com ${name}` : 'Nova conversa'),
               last_message_at: data.last_message_at || data.created_at,
               created_date: data.created_at
@@ -212,6 +267,8 @@ export const base44 = {
           create: async (payload) => {
             const { data: { user } } = await supabase.auth.getUser();
             let dbPayload = {};
+            let studentName = payload.student_name;
+            let studentEmail = payload.student_email;
             
             if (payload.is_group) {
               dbPayload = {
@@ -220,8 +277,16 @@ export const base44 = {
                 user_id: user?.id
               };
             } else {
-              const studentName = payload.student_name || user?.user_metadata?.full_name || 'Aluno';
-              const studentEmail = payload.student_email || user?.email || '';
+              if ((!studentName || !studentEmail) && user) {
+                const targetUserId = payload.student_id || user.id;
+                const { data: profile } = await supabase.from('profiles').select('full_name, email').eq('id', targetUserId).single();
+                if (!studentName) studentName = profile?.full_name || user.user_metadata?.full_name || user.email.split('@')[0];
+                if (!studentEmail) studentEmail = profile?.email || user.email || '';
+              }
+              
+              if (!studentName) studentName = 'Aluno';
+              if (!studentEmail) studentEmail = '';
+              
               dbPayload = {
                 user_id: payload.student_id || user?.id,
                 title: `${studentName}|${studentEmail}`,
@@ -233,12 +298,15 @@ export const base44 = {
             const { data, error } = await supabase.from('chat_rooms').insert(dbPayload).select().single();
             if (error) throw error;
             
-            const [name, email] = (data.title || '').split('|');
+            const [titleName, titleEmail] = (data.title || '').split('|');
+            const name = data.is_group ? data.title : (studentName || titleName || 'Aluno');
+            const email = data.is_group ? 'Grupo' : (studentEmail || titleEmail || '');
+            
             return {
               ...data,
               student_id: data.user_id,
-              student_name: data.is_group ? data.title : (name || 'Aluno'),
-              student_email: data.is_group ? 'Grupo' : (email || ''),
+              student_name: name,
+              student_email: email,
               last_message: name ? (data.is_group ? data.title : `Conversa com ${name}`) : 'Nova conversa',
               last_message_at: data.last_message_at || data.created_at,
               created_date: data.created_at
@@ -249,12 +317,26 @@ export const base44 = {
             if (payload.last_message_at) dbPayload.last_message_at = payload.last_message_at;
             const { data, error } = await supabase.from('chat_rooms').update(dbPayload).eq('id', id).select().single();
             if (error) throw error;
-            const [name, email] = (data.title || '').split('|');
+
+            let name = 'Aluno';
+            let email = '';
+            
+            if (!data.is_group) {
+              const { data: profile } = await supabase.from('profiles').select('full_name, email').eq('id', data.user_id).single();
+              const [titleName, titleEmail] = (data.title || '').split('|');
+              name = profile?.full_name || titleName || 'Aluno';
+              email = profile?.email || titleEmail || '';
+            } else {
+              name = data.title;
+              email = 'Grupo';
+            }
+
             return {
               ...data,
               student_id: data.user_id,
-              student_name: data.is_group ? data.title : (name || 'Aluno'),
-              student_email: data.is_group ? 'Grupo' : (email || ''),
+              student_name: name,
+              student_email: email,
+              last_message: data.is_group ? `Grupo: ${data.title}` : (name ? `Conversa com ${name}` : 'Nova conversa'),
               last_message_at: data.last_message_at || data.created_at,
               created_date: data.created_at
             };
