@@ -194,7 +194,6 @@ export default function Layout({ children, currentPageName }) {
       : (user.role === 'alunos' || user.role === 'aluno' || user.role === 'user' || user.role === 'student')
       ? [
           { name: 'StudentDashboard', icon: GraduationCap, label: 'Meu Dashboard' },
-          { name: 'StudentAiAgents', icon: Sparkles, label: 'Estudo com IA' },
           { name: 'StudentExternalCourses', icon: GraduationCap, label: 'Cursos Externos' },
           { name: 'StudentMessages', icon: MessageSquare, label: 'Mensagens' }
         ]
