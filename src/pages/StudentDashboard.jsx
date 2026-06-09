@@ -1231,7 +1231,7 @@ export default function StudentDashboard() {
             {/* Header */}
             <div className="text-center">
               <h2 className="text-3xl font-bold text-[#1e3a5f] mb-3">
-                Conheça o Bdz Tutor
+                Conheça o RCS Tutor
               </h2>
               <p className="text-slate-600 text-lg">
                 Seu assistente de estudos que não dá respostas prontas - ele te ajuda a{' '}
