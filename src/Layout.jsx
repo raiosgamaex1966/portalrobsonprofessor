@@ -74,6 +74,122 @@ export default function Layout({ children, currentPageName }) {
     }
   }, [authUser]);
 
+  // Função para tocar som de notificação premium usando a Web Audio API nativa
+  const playNotificationSound = () => {
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+      const ctx = new AudioContext();
+      const now = ctx.currentTime;
+      
+      // Tom 1
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(587.33, now); // D5
+      gain1.gain.setValueAtTime(0.1, now);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.15);
+      
+      // Tom 2 (chime)
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(880, now + 0.08); // A5
+      gain2.gain.setValueAtTime(0.1, now + 0.08);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start(now + 0.08);
+      osc2.stop(now + 0.35);
+    } catch (error) {
+      console.warn("AudioContext playback blocked or error:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (!user) return;
+
+    // 1. Escutar ChatMessage em tempo real
+    const unsubscribeChat = base44.entities.ChatMessage.subscribe((event) => {
+      if (event.type === 'create') {
+        const msg = event.data;
+        // Se a mensagem for de outro usuário
+        if (msg.sender_id !== user.id) {
+          playNotificationSound();
+          
+          const isTeacher = user.role === 'admin';
+          const chatUrl = isTeacher ? createPageUrl('AdminChat') : createPageUrl('Chat');
+          
+          toast("Nova mensagem no Chat", {
+            description: `${msg.sender_name}: ${msg.message}`,
+            action: {
+              label: "Ver",
+              onClick: () => {
+                navigate(chatUrl);
+              }
+            }
+          });
+        }
+      }
+    });
+
+    // 2. Escutar StudentMessage em tempo real (dúvidas por e-mail/painel)
+    const channelStudentMsg = supabase
+      .channel('student-messages-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'student_messages'
+        },
+        (payload) => {
+          const msg = payload.new;
+          if (!msg) return;
+
+          if (payload.eventType === 'INSERT') {
+            // Se o usuário logado for professor, notifica nova mensagem de aluno
+            if (user.role === 'admin') {
+              playNotificationSound();
+              toast("Nova mensagem de Aluno", {
+                description: `${msg.student_name}: ${msg.subject}`,
+                action: {
+                  label: "Ver",
+                  onClick: () => {
+                    navigate(createPageUrl('AdminMessages'));
+                  }
+                }
+              });
+            }
+          } else if (payload.eventType === 'UPDATE') {
+            // Se for aluno e seu email corresponder, notifica resposta do professor
+            if (user.role !== 'admin' && msg.student_email === user.email && msg.status === 'replied') {
+              playNotificationSound();
+              toast("Mensagem Respondida pelo Professor", {
+                description: `Assunto: ${msg.subject}`,
+                action: {
+                  label: "Ver",
+                  onClick: () => {
+                    navigate(createPageUrl('StudentMessages'));
+                  }
+                }
+              });
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      unsubscribeChat();
+      supabase.removeChannel(channelStudentMsg);
+    };
+  }, [user]);
+
   const handleLogout = () => {
     authLogout();
   };
