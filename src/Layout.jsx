@@ -6,7 +6,8 @@ import { supabase } from '@/api/supabaseClient';
 import { base44 } from '@/api/base44Client';
 import { 
   Home, BookOpen, FileQuestion, Shield, Menu, X, 
-  GraduationCap, LogOut, User, Settings, Sparkles, ClipboardList, MessageSquare, Code2, Trello, Upload, Edit
+  GraduationCap, LogOut, User, Settings, Sparkles, ClipboardList, MessageSquare, Code2, Trello, Upload, Edit,
+  Bell
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import {
@@ -35,6 +36,83 @@ export default function Layout({ children, currentPageName }) {
     photo_url: ''
   });
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const fetchUnreadCount = async (currentUser = user) => {
+    if (!currentUser) return;
+    try {
+      let notificationsList = [];
+      let totalCount = 0;
+
+      // 1. Buscar chats não lidos do usuário
+      const { data: chatRooms, error: chatError } = await supabase
+        .from('chat_rooms')
+        .select('*');
+
+      if (!chatError && chatRooms) {
+        chatRooms.forEach(room => {
+          const isTeacher = currentUser.role === 'admin';
+          const count = isTeacher ? (room.unread_count_teacher || 0) : (room.unread_count_student || 0);
+          if (count > 0) {
+            totalCount += count;
+            notificationsList.push({
+              id: `chat-${room.id}`,
+              type: 'chat',
+              title: isTeacher ? `Chat: ${room.title || 'Conversa'}` : 'Chat com Professor',
+              description: `${count} mensagem(ns) não lida(s)`,
+              link: isTeacher ? createPageUrl('AdminChat') : createPageUrl('Chat')
+            });
+          }
+        });
+      }
+
+      // 2. Buscar mensagens/dúvidas pendentes/não lidas
+      if (currentUser.role === 'admin') {
+        const { data: studentMessages, error: msgError } = await supabase
+          .from('student_messages')
+          .select('*')
+          .eq('status', 'pending');
+
+        if (!msgError && studentMessages) {
+          totalCount += studentMessages.length;
+          studentMessages.forEach(msg => {
+            notificationsList.push({
+              id: `msg-${msg.id}`,
+              type: 'message',
+              title: `Dúvida: ${msg.subject}`,
+              description: `De: ${msg.student_name}`,
+              link: createPageUrl('AdminMessages')
+            });
+          });
+        }
+      } else {
+        const { data: studentMessages, error: msgError } = await supabase
+          .from('student_messages')
+          .select('*')
+          .eq('student_email', currentUser.email)
+          .eq('status', 'replied'); // respondidas
+
+        if (!msgError && studentMessages) {
+          totalCount += studentMessages.length;
+          studentMessages.forEach(msg => {
+            notificationsList.push({
+              id: `msg-${msg.id}`,
+              type: 'message',
+              title: `Resposta do Professor`,
+              description: `Assunto: ${msg.subject}`,
+              link: createPageUrl('StudentMessages')
+            });
+          });
+        }
+      }
+
+      setUnreadNotifications(notificationsList);
+      setUnreadCount(totalCount);
+    } catch (e) {
+      console.warn("Erro ao buscar contagem de não lidos:", e);
+    }
+  };
 
   useEffect(() => {
     setUser(authUser);
@@ -48,17 +126,23 @@ export default function Layout({ children, currentPageName }) {
             .single();
           if (error) throw error;
           if (data) {
-            setUserProfile({
+            const fullProfile = {
+              ...authUser,
               full_name: data.full_name || authUser.name || authUser.email.split('@')[0],
               photo_url: data.photo_url || '',
               phone: data.phone || '',
-              birth_date: data.birth_date || ''
-            });
+              birth_date: data.birth_date || '',
+              role: data.role || authUser.role || 'user'
+            };
+            setUserProfile(fullProfile);
+            setUser(fullProfile);
+            fetchUnreadCount(fullProfile);
           } else {
             setUserProfile({
               full_name: authUser.name || authUser.email.split('@')[0],
               photo_url: ''
             });
+            fetchUnreadCount(authUser);
           }
         } catch (err) {
           console.error("Erro ao carregar perfil:", err);
@@ -66,11 +150,14 @@ export default function Layout({ children, currentPageName }) {
             full_name: authUser.name || authUser.email.split('@')[0],
             photo_url: ''
           });
+          fetchUnreadCount(authUser);
         }
       };
       fetchProfile();
     } else {
       setUserProfile(null);
+      setUnreadNotifications([]);
+      setUnreadCount(0);
     }
   }, [authUser]);
 
@@ -117,6 +204,8 @@ export default function Layout({ children, currentPageName }) {
     const unsubscribeChat = base44.entities.ChatMessage.subscribe((event) => {
       if (event.type === 'create') {
         const msg = event.data;
+        // Atualiza contagem de não lidos
+        fetchUnreadCount();
         // Se a mensagem for de outro usuário
         if (msg.sender_id !== user.id) {
           playNotificationSound();
@@ -148,6 +237,7 @@ export default function Layout({ children, currentPageName }) {
           table: 'student_messages'
         },
         (payload) => {
+          fetchUnreadCount();
           const msg = payload.new;
           if (!msg) return;
 
@@ -406,6 +496,49 @@ export default function Layout({ children, currentPageName }) {
                     </Link>
                   ))}
                 </div>
+
+                {/* Bell Icon Notification */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-9 w-9 rounded-lg text-slate-600 hover:text-[#1e3a5f] hover:bg-slate-50 relative mr-1">
+                      <Bell className="h-5 w-5" />
+                      {unreadCount > 0 && (
+                        <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white animate-pulse">
+                          {unreadCount}
+                        </span>
+                      )}
+                      <span className="sr-only">Notificações</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-80 max-h-96 overflow-y-auto">
+                    <div className="flex items-center justify-between p-4 border-b">
+                      <span className="font-bold text-sm text-slate-800">Notificações</span>
+                      {unreadCount > 0 && (
+                        <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full font-semibold">
+                          {unreadCount} nova(s)
+                        </span>
+                      )}
+                    </div>
+                    {unreadNotifications.length === 0 ? (
+                      <div className="p-8 text-center text-slate-500 text-xs">
+                        Nenhuma notificação nova
+                      </div>
+                    ) : (
+                      unreadNotifications.map(notification => (
+                        <DropdownMenuItem 
+                          key={notification.id} 
+                          onClick={() => navigate(notification.link)}
+                          className="cursor-pointer p-3 border-b last:border-b-0 hover:bg-slate-50"
+                        >
+                          <div className="space-y-1">
+                            <p className="font-bold text-xs text-slate-800">{notification.title}</p>
+                            <p className="text-[11px] text-slate-500">{notification.description}</p>
+                          </div>
+                        </DropdownMenuItem>
+                      ))
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

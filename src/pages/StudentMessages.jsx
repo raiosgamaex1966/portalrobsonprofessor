@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { base44 } from "@/api/base44Client";
+import { supabase } from "@/api/supabaseClient";
 import { MessageSquare, Send, Clock, CheckCircle, Mail, Plus, X } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +32,21 @@ export default function StudentMessages() {
 
   useEffect(() => {
     loadData();
+
+    const channel = supabase
+      .channel('student-messages-page-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'student_messages' },
+        () => {
+          loadData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const loadData = async () => {

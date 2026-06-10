@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { base44 } from "@/api/base44Client";
-import { MessageSquare, ArrowLeft, Clock, CheckCircle, Mail, Send, Reply, Trash2 } from 'lucide-react';
+import { supabase } from "@/api/supabaseClient";
+import { MessageSquare, ArrowLeft, Clock, CheckCircle, Mail, Send, Reply, Trash2, Plus, X } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,18 +14,45 @@ import { createPageUrl } from "@/utils";
 import { toast } from "sonner";
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function AdminMessages() {
   const [user, setUser] = useState(null);
   const [messages, setMessages] = useState([]);
   const [classes, setClasses] = useState([]);
+  const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [replyText, setReplyText] = useState('');
   const [showReplyDialog, setShowReplyDialog] = useState(false);
+  const [showNewMsgDialog, setShowNewMsgDialog] = useState(false);
+  const [newMsgData, setNewMsgData] = useState({
+    student_id: '',
+    class_id: '',
+    subject: '',
+    message: ''
+  });
 
   useEffect(() => {
     checkAuthAndLoad();
+
+    // Inscrição em tempo real
+    const channel = supabase
+      .channel('admin-messages-page-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'student_messages' },
+        () => {
+          loadData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const checkAuthAndLoad = async () => {
@@ -45,14 +73,49 @@ export default function AdminMessages() {
   };
 
   const loadData = async () => {
-    const [allMessages, allClasses] = await Promise.all([
+    const [allMessages, allClasses, allUsers] = await Promise.all([
       base44.entities.StudentMessage.list('-created_date'),
-      base44.entities.Class.list()
+      base44.entities.Class.list(),
+      base44.entities.User.list()
     ]);
 
     setMessages(allMessages);
     setClasses(allClasses);
+    setStudents((allUsers || []).filter(u => u.role === 'user' || u.role === 'student' || u.role === 'alunos'));
     setLoading(false);
+  };
+
+  const handleSendNewMessage = async () => {
+    if (!newMsgData.student_id || !newMsgData.class_id || !newMsgData.subject.trim() || !newMsgData.message.trim()) {
+      toast.error('Preencha todos os campos obrigatórios');
+      return;
+    }
+
+    try {
+      const selectedStudent = students.find(s => s.id === newMsgData.student_id);
+      if (!selectedStudent) {
+        toast.error('Aluno não encontrado');
+        return;
+      }
+
+      await base44.entities.StudentMessage.create({
+        student_name: selectedStudent.full_name,
+        student_email: selectedStudent.email || '',
+        class_id: newMsgData.class_id,
+        subject: newMsgData.subject,
+        message: newMsgData.message,
+        teacher_reply: newMsgData.message, // preenche ambos para ficar visível como iniciada
+        status: 'replied', // respondida
+        replied_at: new Date().toISOString()
+      });
+
+      toast.success('Mensagem enviada com sucesso!');
+      setShowNewMsgDialog(false);
+      setNewMsgData({ student_id: '', class_id: '', subject: '', message: '' });
+      loadData();
+    } catch (error) {
+      toast.error('Erro ao enviar mensagem');
+    }
   };
 
   const handleOpenReply = (msg) => {
@@ -196,12 +259,21 @@ export default function AdminMessages() {
             <ArrowLeft className="w-4 h-4" />
             Voltar para Painel
           </Link>
-          <div className="flex items-center gap-3">
-            <MessageSquare className="w-8 h-8" />
-            <div>
-              <h1 className="text-3xl font-bold">Mensagens dos Alunos</h1>
-              <p className="text-blue-100 mt-1">Responda às dúvidas e mensagens dos seus alunos</p>
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-3">
+              <MessageSquare className="w-8 h-8" />
+              <div>
+                <h1 className="text-3xl font-bold">Mensagens dos Alunos</h1>
+                <p className="text-blue-100 mt-1">Responda às dúvidas e mensagens dos seus alunos</p>
+              </div>
             </div>
+            <Button 
+              onClick={() => setShowNewMsgDialog(true)}
+              className="bg-[#d4a853] hover:bg-[#c49743] text-[#1e3a5f]"
+            >
+              <Plus className="w-5 h-5 mr-2" />
+              Nova Mensagem
+            </Button>
           </div>
         </div>
       </div>
@@ -318,6 +390,72 @@ export default function AdminMessages() {
             <Button onClick={handleSendReply} className="bg-[#1e3a5f] hover:bg-[#2d4a6f]">
               <Send className="w-4 h-4 mr-2" />
               Enviar Resposta
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Nova Mensagem (Professor) */}
+      <Dialog open={showNewMsgDialog} onOpenChange={setShowNewMsgDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Enviar Mensagem para Aluno</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label>Aluno *</Label>
+              <Select value={newMsgData.student_id} onValueChange={(value) => setNewMsgData({...newMsgData, student_id: value})}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Selecione o aluno" />
+                </SelectTrigger>
+                <SelectContent>
+                  {students.map(s => (
+                    <SelectItem key={s.id} value={s.id}>{s.full_name} ({s.email})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Turma *</Label>
+              <Select value={newMsgData.class_id} onValueChange={(value) => setNewMsgData({...newMsgData, class_id: value})}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Selecione a turma" />
+                </SelectTrigger>
+                <SelectContent>
+                  {classes.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Assunto *</Label>
+              <Input
+                value={newMsgData.subject}
+                onChange={(e) => setNewMsgData({...newMsgData, subject: e.target.value})}
+                placeholder="Qual o assunto da mensagem?"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label>Mensagem *</Label>
+              <Textarea
+                value={newMsgData.message}
+                onChange={(e) => setNewMsgData({...newMsgData, message: e.target.value})}
+                placeholder="Escreva a mensagem..."
+                className="mt-1"
+                rows={6}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setShowNewMsgDialog(false)}>
+              <X className="w-4 h-4 mr-2" />
+              Cancelar
+            </Button>
+            <Button onClick={handleSendNewMessage} className="bg-[#1e3a5f] hover:bg-[#2d4a6f]">
+              <Send className="w-4 h-4 mr-2" />
+              Enviar
             </Button>
           </div>
         </DialogContent>
