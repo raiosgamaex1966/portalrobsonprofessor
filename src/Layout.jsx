@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 import { useAuth } from '@/lib/AuthContext';
@@ -161,12 +161,51 @@ export default function Layout({ children, currentPageName }) {
     }
   }, [authUser]);
 
+  const audioCtxRef = useRef(null);
+
+  // Inicializa ou retoma o AudioContext no primeiro clique/tecla para contornar bloqueios de autoplay do navegador
+  useEffect(() => {
+    const initAudio = () => {
+      try {
+        if (!audioCtxRef.current) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) {
+            audioCtxRef.current = new AudioContext();
+          }
+        } else if (audioCtxRef.current.state === 'suspended') {
+          audioCtxRef.current.resume();
+        }
+      } catch (e) {
+        console.warn("Falha ao inicializar o AudioContext:", e);
+      }
+      // Remove ouvintes após a primeira interação
+      window.removeEventListener('click', initAudio);
+      window.removeEventListener('keydown', initAudio);
+    };
+
+    window.addEventListener('click', initAudio);
+    window.addEventListener('keydown', initAudio);
+    return () => {
+      window.removeEventListener('click', initAudio);
+      window.removeEventListener('keydown', initAudio);
+    };
+  }, []);
+
   // Função para tocar som de notificação premium usando a Web Audio API nativa
   const playNotificationSound = () => {
     try {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContext) return;
-      const ctx = new AudioContext();
+      let ctx = audioCtxRef.current;
+      if (!ctx) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        ctx = new AudioContext();
+        audioCtxRef.current = ctx;
+      }
+      
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+
       const now = ctx.currentTime;
       
       // Tom 1
@@ -174,7 +213,7 @@ export default function Layout({ children, currentPageName }) {
       const gain1 = ctx.createGain();
       osc1.type = 'sine';
       osc1.frequency.setValueAtTime(587.33, now); // D5
-      gain1.gain.setValueAtTime(0.1, now);
+      gain1.gain.setValueAtTime(0.08, now);
       gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
       osc1.connect(gain1);
       gain1.connect(ctx.destination);
@@ -186,7 +225,7 @@ export default function Layout({ children, currentPageName }) {
       const gain2 = ctx.createGain();
       osc2.type = 'sine';
       osc2.frequency.setValueAtTime(880, now + 0.08); // A5
-      gain2.gain.setValueAtTime(0.1, now + 0.08);
+      gain2.gain.setValueAtTime(0.08, now + 0.08);
       gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
       osc2.connect(gain2);
       gain2.connect(ctx.destination);
