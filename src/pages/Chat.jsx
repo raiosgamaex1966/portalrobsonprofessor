@@ -24,7 +24,7 @@ export default function Chat() {
   }, []);
 
   useEffect(() => {
-    if (selectedRoom) {
+    if (selectedRoom && user) {
       loadMessages();
       markAsRead();
 
@@ -33,7 +33,7 @@ export default function Chat() {
         if (event.type === 'create' && event.data.room_id === selectedRoom.id) {
           setMessages(prev => [...prev, event.data]);
           scrollToBottom();
-          if (event.data.sender_id !== user.id) {
+          if (user && event.data.sender_id !== user.id) {
             markAsRead();
           }
         }
@@ -41,7 +41,7 @@ export default function Chat() {
 
       return unsubscribe;
     }
-  }, [selectedRoom]);
+  }, [selectedRoom, user]);
 
   useEffect(() => {
     scrollToBottom();

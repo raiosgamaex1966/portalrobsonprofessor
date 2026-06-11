@@ -427,8 +427,9 @@ export const base44 = {
             };
           },
           subscribe: (callback) => {
+            const channelId = `chat-messages-${Math.random().toString(36).substring(2, 9)}`;
             const channel = supabase
-              .channel('schema-db-changes')
+              .channel(channelId)
               .on(
                 'postgres_changes',
                 {
